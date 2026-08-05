@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Sports Predictor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #0f172a;
+            color: #ffffff;
+            margin: 0;
+            padding: 15px;
+        }
+        h1 {
+            text-align: center;
+            color: #38bdf8;
+            font-size: 22px;
+        }
+        .container {
+            max-width: 500px;
+            margin: auto;
+        }
+        .category-title {
+            margin-top: 20px;
+            font-size: 16px;
+            color: #94a3b8;
+        }
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            background-color: #1e293b;
+            color: #38bdf8;
+            border: 1px solid #38bdf8;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:active {
+            background-color: #38bdf8;
+            color: #0f172a;
+        }
+        .result-box {
+            margin-top: 20px;
+            background-color: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #38bdf8;
+        }
+        .match-item {
+            border-bottom: 1px solid #334155;
+            padding: 8px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>AI Match Predictor</h1>
+        <p style="text-align: center; font-size: 13px; color: #94a3b8;">Chagua kiwango cha Odds unachotaka leo</p>
+
+        <div class="category-title">Chagua Daraja la Odds:</div>
+        <div class="btn-grid">
+            <button onclick="loadPredictions(1.50)">Odds 1.50</button>
+            <button onclick="loadPredictions(2.00)">Odds 2.00</button>
+            <button onclick="loadPredictions(3.50)">Odds 3.00 - 4.00</button>
+            <button onclick="loadPredictions(6.00)">Odds 5.00 - 7.00</button>
+            <button onclick="loadPredictions(20.00)" style="grid-column: span 2;">Odds 20.00+</button>
+        </div>
+
+        <div class="result-box" id="predictionResult">
+            <strong>Matokeo ya Uchambuzi wa AI:</strong>
+            <p id="outputText">Bonyeza kitufe hapo juu ili kuona mechi zilizochambuliwa na AI kwa leo.</p>
+        </div>
+    </div>
+
+    <script>
+        // Data za Mfano zinazotolewa na AI kulingana na Odds zilizochaguliwa
+        const mockDatabase = {
+            1.50: [
+                { match: "Arsenal vs Wolves", pick: "Home Win", odd: "1.45", prob: "89%" }
+            ],
+            2.00: [
+                { match: "Real Madrid vs Valencia", pick: "Over 1.5", odd: "1.30", prob: "91%" },
+                { match: "Inter Milan vs Empoli", pick: "Home Win", odd: "1.52", prob: "85%" }
+            ],
+            3.50: [
+                { match: "Man City vs Brighton", pick: "Over 2.5", odd: "1.65", prob: "78%" },
+                { match: "Bayern vs Augsburg", pick: "Home Win & Over 1.5", odd: "1.85", prob: "75%" }
+            ],
+            6.00: [
+                { match: "Barcelona vs Sevilla", pick: "BTTS (GG)", odd: "1.75", prob: "72%" },
+                { match: "Napoli vs Lecce", pick: "Home Win", odd: "1.40", prob: "88%" },
+                { match: "Dortmund vs Mainz", pick: "Over 2.5", odd: "1.70", prob: "70%" }
+            ],
+            20.00: [
+                { match: "Mechi 7 za Mseto (Accumulator)", pick: "Various Picks", odd: "22.45", prob: "45%" }
+            ]
+        };
+
+        function loadPredictions(targetOdd) {
+            const outputText = document.getElementById("outputText");
+            const data = mockDatabase[targetOdd];
+            
+            let htmlContent = `<br><b>Lengo: Odds ${targetOdd}</b><br><br>`;
+            
+            data.forEach(item => {
+                htmlContent += `
+                    <div class="match-item">
+                        ⚽ <b>${item.match}</b><br>
+                        🔹 Utabiri: ${item.pick} (Odd: ${item.odd})<br>
+                        📈 Uwezekano wa Ushindi: <span style="color: #4ade80;">${item.prob}</span>
+                    </div>
+                `;
+            });
+            
+            outputText.innerHTML = htmlContent;
+        }
+    </script>
+</body>
+</html>
