@@ -60,6 +60,8 @@
             background: linear-gradient(90deg, #d946ef, #8b5cf6);
             color: white;
             border: none;
+            font-size: 16px;
+            text-transform: uppercase;
         }
         .result-box {
             margin-top: 25px;
@@ -143,12 +145,12 @@
             <button onclick="filterOdds(3.50)">Odds 3.00 - 4.00</button>
             <button onclick="filterOdds(6.00)">Odds 5.00 - 7.00</button>
             <button onclick="filterOdds(20.00)" style="grid-column: span 2;">Odds 20.00+</button>
-            <button onclick="filterOdds(300.00)" class="btn-special">Odds 300+</button>
+            <button onclick="filterOdds(300.00)" class="btn-special">Target: Odds 300+</button>
         </div>
 
         <div class="result-box" id="predictionResult">
             <div id="matchesOutput" class="loading-text">
-                App inajiandaa kuvuta mechi...
+                Connecting to live servers... Please wait.
             </div>
         </div>
     </div>
@@ -157,7 +159,6 @@
         let analyzedMatches = [];
         const bookmakers = ["1Win", "SportPesa", "betPawa", "SportyBet", "Betway"];
 
-        // Kupata tarehe ya leo kwenye format ya Kitanzania
         function getTodayDate() {
             let today = new Date();
             let dd = String(today.getDate()).padStart(2, '0');
@@ -166,9 +167,8 @@
             return `${dd}/${mm}/${yyyy}`;
         }
 
-        // Algorithmi ya kuchambua mechi na kupanga odds halisi
         function runAIAnalysis(fixture) {
-            let winProb = Math.floor(Math.random() * 30) + 60; // 60% hadi 90%
+            let winProb = Math.floor(Math.random() * 30) + 60; // Probability between 60% and 90%
 
             let pick = "Over 1.5 Goals";
             if (winProb > 80) {
@@ -179,17 +179,15 @@
                 pick = "Over 2.5 Goals";
             }
 
-            // Kupiga Hesabu za Odds kulingana na asilimia ya ushindi
             let calculatedOdd = ((100 / winProb) * 0.92).toFixed(2);
             if (calculatedOdd < 1.15) calculatedOdd = 1.25;
 
-            // Kuchagua kampuni ya kubeti kiotomatiki
             let randomBookie = bookmakers[Math.floor(Math.random() * bookmakers.length)];
 
             return {
                 homeTeam: fixture.homeTeam,
                 awayTeam: fixture.awayTeam,
-                league: fixture.league || "Ligi",
+                league: fixture.league || "League",
                 matchDate: getTodayDate(),
                 matchTime: fixture.matchTime || "22:00",
                 prediction: pick,
@@ -199,32 +197,36 @@
             };
         }
 
-        // Kuvuta data kutoka RapidAPI kwa kutumia API Key uliyotoa
         async function fetchLiveMatches() {
             const output = document.getElementById("matchesOutput");
-            output.innerHTML = "Inavuta mechi za leo za ukweli, subiri kidogo...";
+            output.innerHTML = "Fetching live global fixtures... Please wait.";
 
             let today = new Date().toISOString().split('T')[0];
 
             try {
-                let response = await fetch(`https://v3.football.api-sports.io/fixtures?date=${today}`, {
+                // Corrected RapidAPI endpoint and headers
+                let response = await fetch(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}`, {
                     method: "GET",
                     headers: {
-                        "x-rapidapi-host": "v3.football.api-sports.io",
-                        "x-rapidapi-key": "4fab3212c3msha71c12ec174b354p1009e7jsnfd9cc011cbf0" // API KEY YAKO IPO HAPA
+                        "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
+                        "x-rapidapi-key": "4fab3212c3msha71c12ec174b354p1009e7jsnfd9cc011cbf0" 
                     }
                 });
                 
                 if (response.ok) {
                     let data = await response.json();
                     
-                    if (data.response.length === 0) {
-                        output.innerHTML = "Hakuna mechi zilizopatikana leo.";
+                    if (data.errors && Object.keys(data.errors).length > 0) {
+                        output.innerHTML = "<span style='color: #f87171;'>⚠️ API Error: Ensure you have clicked 'Subscribe' on the Basic (Free) plan in RapidAPI for API-Football.</span>";
                         return;
                     }
 
-                    // Kuchukua mechi 25 tu za kwanza
-                    let liveFixtures = data.response.slice(0, 25); 
+                    if (data.response.length === 0) {
+                        output.innerHTML = "No live fixtures found for today in the database.";
+                        return;
+                    }
+
+                    let liveFixtures = data.response.slice(0, 30); // Grab top 30 matches
 
                     analyzedMatches = liveFixtures.map(match => runAIAnalysis({
                         homeTeam: match.teams.home.name,
@@ -233,32 +235,34 @@
                         matchTime: new Date(match.fixture.date).toLocaleTimeString('sw-TZ', {hour: '2-digit', minute:'2-digit'})
                     }));
                     
-                    output.innerHTML = "<span style='color: #4ade80;'>✅ Mechi za leo zimevutwa kikamilifu! Chagua Odds hapo juu.</span>";
+                    output.innerHTML = "<span style='color: #4ade80;'>✅ Live matches successfully loaded! Select your target odds above.</span>";
                 } else {
-                    throw new Error("API imegoma au Key ina shida");
+                    throw new Error("API integration failed or Key is invalid.");
                 }
             } catch (error) {
-                // Kama mtandao unasumbua, itatumia mechi za mfano
+                // Offline fallback data to test UI
                 let fallbackFixtures = [
-                    { homeTeam: "Arsenal", awayTeam: "Aston Villa", matchTime: "17:30" },
-                    { homeTeam: "Real Madrid", awayTeam: "Sevilla", matchTime: "20:00" },
-                    { homeTeam: "Bayern", awayTeam: "Leipzig", matchTime: "16:30" },
-                    { homeTeam: "Inter Milan", awayTeam: "Roma", matchTime: "21:45" },
-                    { homeTeam: "PSG", awayTeam: "Monaco", matchTime: "22:00" }
+                    { homeTeam: "Arsenal", awayTeam: "Aston Villa", matchTime: "17:30", league: "Premier League" },
+                    { homeTeam: "Real Madrid", awayTeam: "Sevilla", matchTime: "20:00", league: "La Liga" },
+                    { homeTeam: "Bayern Munich", awayTeam: "RB Leipzig", matchTime: "16:30", league: "Bundesliga" },
+                    { homeTeam: "Inter Milan", awayTeam: "AS Roma", matchTime: "21:45", league: "Serie A" },
+                    { homeTeam: "PSG", awayTeam: "AS Monaco", matchTime: "22:00", league: "Ligue 1" },
+                    { homeTeam: "Liverpool", awayTeam: "Chelsea", matchTime: "19:30", league: "Premier League" },
+                    { homeTeam: "Barcelona", awayTeam: "Valencia", matchTime: "23:00", league: "La Liga" }
                 ];
                 analyzedMatches = fallbackFixtures.map(match => runAIAnalysis(match));
-                output.innerHTML = "<span style='color: #f87171;'>⚠️ Mtandao unasumbua. Inatumia mechi za hifadhi. Chagua Odds hapo juu.</span>";
+                output.innerHTML = "<span style='color: #facc15;'>⚠️ Network unavailable. Using offline fallback data. Select your odds above.</span>";
             }
         }
 
-        // Kuchuja na kupanga mkeka
         function filterOdds(targetOdd) {
             const output = document.getElementById("matchesOutput");
             if (analyzedMatches.length === 0) {
-                output.innerHTML = "Subiri kidogo, app bado inatafuta mechi...";
+                output.innerHTML = "Processing fixtures... Please wait.";
                 return;
             }
 
+            // Shuffle array to ensure unique accumulator slips
             let shuffledMatches = analyzedMatches.sort(() => 0.5 - Math.random());
             let selected = [];
             let currentOdd = 1.0;
@@ -267,7 +271,7 @@
                 if (currentOdd * match.odd <= targetOdd * 1.5) { 
                     selected.push(match);
                     currentOdd *= match.odd;
-                    if (currentOdd >= targetOdd * 0.95) break;
+                    if (currentOdd >= targetOdd * 0.90) break; 
                 }
             }
 
@@ -282,27 +286,24 @@
                         </div>
                         <div class="match-title">⚽ ${m.homeTeam} vs ${m.awayTeam}</div>
                         <div class="prediction-details">
-                            🎯 Utabiri: <b style="color: #ffffff;">${m.prediction}</b><br>
-                            📊 Odd: <b>${m.odd.toFixed(2)}</b> <span class="badge-bookie">${m.bookmaker}</span><br>
-                            📈 Nafasi: <span class="badge-prob">${m.probability}</span>
+                            🎯 Prediction: <b style="color: #ffffff;">${m.prediction}</b><br>
+                            📊 Value: <b>${m.odd.toFixed(2)}</b> <span class="badge-bookie">${m.bookmaker}</span><br>
+                            📈 Win Probability: <span class="badge-prob">${m.probability}</span>
                         </div>
                     </div>
                 `;
             });
 
-            // JUMLA YA ODDS
             html += `
                 <div class="total-odds-box">
-                    Jumla ya Odds: ${currentOdd.toFixed(2)}
+                    Total Odds: ${currentOdd.toFixed(2)}
                 </div>
             `;
 
             output.innerHTML = html;
         }
 
-        // Kuwasha app
         fetchLiveMatches();
     </script>
 </body>
 </html>
- 
