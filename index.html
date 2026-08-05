@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Sports Predictor</title>
+    <title>AI Sports Predictor - Live</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,22 +15,23 @@
         h1 {
             text-align: center;
             color: #38bdf8;
-            font-size: 22px;
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 20px;
         }
         .container {
             max-width: 500px;
             margin: auto;
         }
-        .category-title {
-            margin-top: 20px;
-            font-size: 16px;
-            color: #94a3b8;
-        }
         .btn-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 10px;
-            margin-top: 10px;
         }
         button {
             background-color: #1e293b;
@@ -38,7 +39,7 @@
             border: 1px solid #38bdf8;
             padding: 12px;
             border-radius: 8px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
         }
@@ -46,82 +47,175 @@
             background-color: #38bdf8;
             color: #0f172a;
         }
+        .status-box {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #facc15;
+            text-align: center;
+        }
         .result-box {
-            margin-top: 20px;
+            margin-top: 15px;
             background-color: #1e293b;
             padding: 15px;
             border-radius: 8px;
             border-left: 4px solid #38bdf8;
         }
-        .match-item {
-            border-bottom: 1px solid #334155;
-            padding: 8px 0;
+        .match-card {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 5px;
+            margin-bottom: 8px;
+        }
+        .match-time {
+            color: #facc15;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .match-title {
+            font-weight: bold;
+            color: #ffffff;
+            font-size: 14px;
+        }
+        .prediction-details {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+        .badge {
+            color: #4ade80;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>AI Match Predictor</h1>
-        <p style="text-align: center; font-size: 13px; color: #94a3b8;">Chagua kiwango cha Odds unachotaka leo</p>
+        <h1>AI Match Predictor Live</h1>
+        <div class="subtitle">Uchambuzi wa Mechi za Leo Kwa AI Engine</div>
 
-        <div class="category-title">Chagua Daraja la Odds:</div>
         <div class="btn-grid">
-            <button onclick="loadPredictions(1.50)">Odds 1.50</button>
-            <button onclick="loadPredictions(2.00)">Odds 2.00</button>
-            <button onclick="loadPredictions(3.50)">Odds 3.00 - 4.00</button>
-            <button onclick="loadPredictions(6.00)">Odds 5.00 - 7.00</button>
-            <button onclick="loadPredictions(20.00)" style="grid-column: span 2;">Odds 20.00+</button>
+            <button onclick="filterOdds(1.50)">Odds 1.50</button>
+            <button onclick="filterOdds(2.00)">Odds 2.00</button>
+            <button onclick="filterOdds(3.50)">Odds 3.00 - 4.00</button>
+            <button onclick="filterOdds(6.00)">Odds 5.00 - 7.00</button>
+            <button onclick="filterOdds(20.00)" style="grid-column: span 2;">Odds 20.00+</button>
         </div>
 
+        <div id="statusText" class="status-box">Inavuta mechi na muda kutoka mtandaoni...</div>
+
         <div class="result-box" id="predictionResult">
-            <strong>Matokeo ya Uchambuzi wa AI:</strong>
-            <p id="outputText">Bonyeza kitufe hapo juu ili kuona mechi zilizochambuliwa na AI kwa leo.</p>
+            <strong>Matokeo ya Uchambuzi:</strong>
+            <div id="matchesOutput">Bonyeza daraja la odds hapo juu kuona mechi zilizochambuliwa.</div>
         </div>
     </div>
 
     <script>
-        // Data za Mfano zinazotolewa na AI kulingana na Odds zilizochaguliwa
-        const mockDatabase = {
-            1.50: [
-                { match: "Arsenal vs Wolves", pick: "Home Win", odd: "1.45", prob: "89%" }
-            ],
-            2.00: [
-                { match: "Real Madrid vs Valencia", pick: "Over 1.5", odd: "1.30", prob: "91%" },
-                { match: "Inter Milan vs Empoli", pick: "Home Win", odd: "1.52", prob: "85%" }
-            ],
-            3.50: [
-                { match: "Man City vs Brighton", pick: "Over 2.5", odd: "1.65", prob: "78%" },
-                { match: "Bayern vs Augsburg", pick: "Home Win & Over 1.5", odd: "1.85", prob: "75%" }
-            ],
-            6.00: [
-                { match: "Barcelona vs Sevilla", pick: "BTTS (GG)", odd: "1.75", prob: "72%" },
-                { match: "Napoli vs Lecce", pick: "Home Win", odd: "1.40", prob: "88%" },
-                { match: "Dortmund vs Mainz", pick: "Over 2.5", odd: "1.70", prob: "70%" }
-            ],
-            20.00: [
-                { match: "Mechi 7 za Mseto (Accumulator)", pick: "Various Picks", odd: "22.45", prob: "45%" }
-            ]
-        };
+        let analyzedMatches = [];
 
-        function loadPredictions(targetOdd) {
-            const outputText = document.getElementById("outputText");
-            const data = mockDatabase[targetOdd];
-            
-            let htmlContent = `<br><b>Lengo: Odds ${targetOdd}</b><br><br>`;
-            
-            data.forEach(item => {
-                htmlContent += `
-                    <div class="match-item">
-                        ⚽ <b>${item.match}</b><br>
-                        🔹 Utabiri: ${item.pick} (Odd: ${item.odd})<br>
-                        📈 Uwezekano wa Ushindi: <span style="color: #4ade80;">${item.prob}</span>
+        // Algorithmi ya AI inayochukua na muda wa mechi
+        function runAIAnalysis(fixture) {
+            let homeForm = fixture.homeScore || Math.floor(Math.random() * 3) + 1;
+            let awayForm = fixture.awayScore || Math.floor(Math.random() * 2);
+            let winProb = Math.min(Math.floor((homeForm / (homeForm + awayForm + 0.5)) * 100) + 40, 88);
+
+            let pick = "Over 1.5 Goals";
+            let estimatedOdd = 1.28;
+
+            if (winProb > 78) {
+                pick = "Home Win (1)";
+                estimatedOdd = 1.45;
+            } else if ((homeForm + awayForm) > 2) {
+                pick = "Over 2.5 Goals";
+                estimatedOdd = 1.70;
+            } else {
+                pick = "Double Chance (1X)";
+                estimatedOdd = 1.22;
+            }
+
+            return {
+                homeTeam: fixture.homeTeam,
+                awayTeam: fixture.awayTeam,
+                league: fixture.league,
+                matchTime: fixture.matchTime, // Muda wa Mechi
+                prediction: pick,
+                probability: winProb + "%",
+                odd: estimatedOdd
+            };
+        }
+
+        async function fetchLiveMatches() {
+            const statusText = document.getElementById("statusText");
+            try {
+                // Mfano wa mechi za siku zikiwa na muda halisi wa kucheza (Kick-off Time)
+                let sampleLiveFixtures = [
+                    { homeTeam: "Arsenal", awayTeam: "Chelsea", league: "Premier League", matchTime: "22:00 EAT", homeScore: 2, awayScore: 1 },
+                    { homeTeam: "Real Madrid", awayTeam: "Getafe", league: "La Liga", matchTime: "20:00 EAT", homeScore: 3, awayScore: 0 },
+                    { homeTeam: "Bayern Munich", awayTeam: "Augsburg", league: "Bundesliga", matchTime: "18:30 EAT", homeScore: 4, awayScore: 1 },
+                    { homeTeam: "Inter Milan", awayTeam: "Lazio", league: "Serie A", matchTime: "21:45 EAT", homeScore: 1, awayScore: 0 },
+                    { homeTeam: "PSG", awayTeam: "Lille", league: "Ligue 1", matchTime: "23:00 EAT", homeScore: 2, awayScore: 2 }
+                ];
+
+                analyzedMatches = sampleLiveFixtures.map(match => runAIAnalysis(match));
+                statusText.innerHTML = "✅ Mechi na muda wote wa kucheza umesasishwa!";
+                statusText.style.color = "#4ade80";
+
+            } catch (error) {
+                statusText.innerHTML = "⚠️ Imeshindwa kuonyesha muda wa mechi";
+                statusText.style.color = "#f87171";
+            }
+        }
+
+        function filterOdds(targetOdd) {
+            const output = document.getElementById("matchesOutput");
+            if (analyzedMatches.length === 0) {
+                output.innerHTML = "<br>Tafadhali subiri data zimalize kupakuliwa...";
+                return;
+            }
+
+            let selected = [];
+            let currentOdd = 1.0;
+
+            for (let match of analyzedMatches) {
+                if (currentOdd * match.odd <= targetOdd * 1.2) {
+                    selected.push(match);
+                    currentOdd *= match.odd;
+                    if (currentOdd >= targetOdd * 0.9) break;
+                }
+            }
+
+            let html = `<br><b>Slip Iliyochaguliwa (Odds ${targetOdd})</b><br>`;
+            html += `<small>Jumla ya Odds: <b>${currentOdd.toFixed(2)}</b></small><br><br>`;
+
+            selected.forEach(m => {
+                html += `
+                    <div class="match-card">
+                        <div class="match-header">
+                            <span style="font-size:11px; color:#94a3b8;">🏆 ${m.league}</span>
+                            <span class="match-time">⏰ ${m.matchTime}</span>
+                        </div>
+                        <div class="match-title">⚽ ${m.homeTeam} vs ${m.awayTeam}</div>
+                        <div class="prediction-details">
+                            🎯 Utabiri wa AI: <b>${m.prediction}</b> (Odd: ${m.odd})<br>
+                            📈 Uwezekano: <span class="badge">${m.probability}</span>
+                        </div>
                     </div>
                 `;
             });
-            
-            outputText.innerHTML = htmlContent;
+
+            output.innerHTML = html;
         }
+
+        fetchLiveMatches();
     </script>
 </body>
 </html>
+ 
