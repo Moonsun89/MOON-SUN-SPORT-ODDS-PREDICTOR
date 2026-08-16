@@ -324,15 +324,19 @@ async function loadTodayData(){
   for(const m of matches){
     const code = m.competition.code;
     const table = standingsCache[code];
-    let homeRow = table && table.HOME[m.homeTeam.id];
-    let awayRow = table && table.AWAY[m.awayTeam.id];
+    let homeRow = table && table.TOTAL[m.homeTeam.id];
+    let awayRow = table && table.TOTAL[m.awayTeam.id];
 
     let lambdaH, lambdaA, dataQuality;
     if(homeRow && awayRow && homeRow.playedGames >= 1 && awayRow.playedGames >= 1){
       lambdaH = homeRow.goalsFor / homeRow.playedGames;
       lambdaA = awayRow.goalsFor / awayRow.playedGames;
+      // blend in opponent's defensive average for realism
       lambdaH = (lambdaH + (awayRow.goalsAgainst / awayRow.playedGames)) / 2;
       lambdaA = (lambdaA + (homeRow.goalsAgainst / homeRow.playedGames)) / 2;
+      // small heuristic home-advantage boost, since we no longer split home/away tables
+      lambdaH *= 1.12;
+      lambdaA *= 0.92;
       dataQuality = (homeRow.playedGames >= 3 && awayRow.playedGames >= 3) ? 'season' : 'early';
     } else {
       lambdaH = 1.45; lambdaA = 1.15; // league-average fallback
@@ -375,15 +379,13 @@ async function fetchStandings(code){
     const res = await fetch(`/api/predict?type=standings&code=${code}`);
     if(!res.ok) return;
     const json = await res.json();
-    const home = {}, away = {};
+    const total = {};
     (json.standings || []).forEach(block=>{
-      if(block.type === 'HOME'){
-        block.table.forEach(row => home[row.team.id] = row);
-      } else if(block.type === 'AWAY'){
-        block.table.forEach(row => away[row.team.id] = row);
+      if(block.type === 'TOTAL'){
+        block.table.forEach(row => total[row.team.id] = row);
       }
     });
-    standingsCache[code] = {HOME:home, AWAY:away};
+    standingsCache[code] = {TOTAL: total};
   }catch(e){ /* skip this competition's stats */ }
 }
 
