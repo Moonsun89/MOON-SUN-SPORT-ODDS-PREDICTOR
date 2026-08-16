@@ -142,7 +142,6 @@
 
 <script>
 let lang = 'sw';
-let API_KEY = 'c193872bdf2840ec86479caf47d36e20'; // token lako la football-data.org
 let allMatches = [];      // enriched with probabilities
 const standingsCache = {}; // competitionCode -> {HOME:{teamId:row}, AWAY:{teamId:row}}
 
@@ -282,9 +281,12 @@ async function loadTodayData(){
   setStatus(T[lang].loadingMatches, '');
   let matchesJson;
   try{
-    const res = await fetch(`https://api.football-data.org/v4/matches?dateFrom=${today}&dateTo=${today}`,{
-      headers:{ 'X-Auth-Token': API_KEY }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(`/api/predict?type=matches&dateFrom=${today}&dateTo=${today}`, {
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     if(!res.ok){
       const bodyText = await res.text().catch(()=> '');
       const hint = res.status === 429
@@ -295,7 +297,10 @@ async function loadTodayData(){
     }
     matchesJson = await res.json();
   }catch(e){
-    setStatus(`${T[lang].keyInvalid} (${e.message})`, 'err');
+    const msg = e.name === 'AbortError'
+      ? (lang==='sw' ? 'Muda umeisha — seva haijibu (angalia mtandao wako au fungua Console/F12 kuona sababu).' : 'Request timed out — server not responding (check your network or open Console/F12 for details).')
+      : e.message;
+    setStatus(`${T[lang].keyInvalid} (${msg})`, 'err');
     return;
   }
 
@@ -365,9 +370,7 @@ async function loadTodayData(){
 
 async function fetchStandings(code){
   try{
-    const res = await fetch(`https://api.football-data.org/v4/competitions/${code}/standings`,{
-      headers:{ 'X-Auth-Token': API_KEY }
-    });
+    const res = await fetch(`/api/predict?type=standings&code=${code}`);
     if(!res.ok) return;
     const json = await res.json();
     const home = {}, away = {};
