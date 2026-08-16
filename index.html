@@ -328,12 +328,12 @@ async function loadTodayData(){
     let awayRow = table && table.AWAY[m.awayTeam.id];
 
     let lambdaH, lambdaA, dataQuality;
-    if(homeRow && awayRow && homeRow.playedGames >= 3 && awayRow.playedGames >= 3){
+    if(homeRow && awayRow && homeRow.playedGames >= 1 && awayRow.playedGames >= 1){
       lambdaH = homeRow.goalsFor / homeRow.playedGames;
       lambdaA = awayRow.goalsFor / awayRow.playedGames;
       lambdaH = (lambdaH + (awayRow.goalsAgainst / awayRow.playedGames)) / 2;
       lambdaA = (lambdaA + (homeRow.goalsAgainst / homeRow.playedGames)) / 2;
-      dataQuality = 'season';
+      dataQuality = (homeRow.playedGames >= 3 && awayRow.playedGames >= 3) ? 'season' : 'early';
     } else {
       lambdaH = 1.45; lambdaA = 1.15; // league-average fallback
       dataQuality = 'average';
@@ -414,7 +414,7 @@ function buildSlip(min, max){
 
   let html = '';
   selected.forEach(m=>{
-    const qualityNote = m.dataQuality === 'average' ? ' †' : '';
+    const qualityNote = m.dataQuality === 'average' ? ' †' : (m.dataQuality === 'early' ? ' *' : '');
     html += `
       <div class="match-card">
         <div class="match-header">
