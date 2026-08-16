@@ -147,10 +147,10 @@ const standingsCache = {}; // competitionCode -> {HOME:{teamId:row}, AWAY:{teamI
 
 const T = {
   sw: {
-    subtitle:"Uchambuzi wa kitakwimu wa mechi za leo",
-    loadingMatches:"Inapakua mechi za leo...",
+    subtitle:"Uchambuzi wa kitakwimu wa mechi za wiki hii",
+    loadingMatches:"Inapakua mechi za wiki hii...",
     loadingStandings:"Inachambua takwimu za timu...",
-    noMatches:"Hakuna mechi zilizopatikana kwa leo kwenye ligi zinazopatikana bure.",
+    noMatches:"Hakuna mechi zilizopatikana wiki hii kwenye ligi zinazopatikana bure.",
     keyInvalid:"Imeshindwa kupakua data kwa sasa. Jaribu tena baada ya dakika chache.",
     readyMsg:"✅ Mechi na takwimu zimepakuliwa. Chagua kundi la odds hapo juu.",
     pickBucket:"Bofya kundi la odds hapo juu kuona pendekezo.",
@@ -169,10 +169,10 @@ const T = {
     adviceBtn:"⚠️ Ushauri wa Kucheza Salama"
   },
   en: {
-    subtitle:"Statistical analysis of today's matches",
-    loadingMatches:"Loading today's matches...",
+    subtitle:"Statistical analysis of this week's matches",
+    loadingMatches:"Loading this week's matches...",
     loadingStandings:"Analyzing team statistics...",
-    noMatches:"No matches found today in the freely available leagues.",
+    noMatches:"No matches found this week in the freely available leagues.",
     keyInvalid:"Couldn't load data right now. Please try again in a few minutes.",
     readyMsg:"✅ Matches and stats loaded. Pick an odds group above.",
     pickBucket:"Tap an odds group above to see the recommendation.",
@@ -259,8 +259,10 @@ function bestMarket(probs){
 
 // ---- Data loading ----
 async function loadTodayData(){
-  const today = new Date().toISOString().split('T')[0];
-  const cacheKey = `msp_cache_${today}`;
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const weekEnd = new Date(today.getTime() + 6*24*60*60*1000).toISOString().split('T')[0];
+  const cacheKey = `msp_cache_${todayStr}`;
 
   // Use cached results if fetched within the last 20 minutes — avoids
   // re-hitting football-data.org's 10 calls/minute limit on every reload.
@@ -283,7 +285,7 @@ async function loadTodayData(){
   try{
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
-    const res = await fetch(`/api/predict?type=matches&dateFrom=${today}&dateTo=${today}`, {
+    const res = await fetch(`/api/predict?type=matches&dateFrom=${todayStr}&dateTo=${weekEnd}`, {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
