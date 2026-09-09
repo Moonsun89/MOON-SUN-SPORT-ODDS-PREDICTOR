@@ -326,83 +326,89 @@ async function loadTodayData(){
     await new Promise(r => setTimeout(r, 350)); // gentle on free-tier rate limit
   }
 
-  allMatches = [];
-  for(const m of matches){
-    const code = m.competition.code;
-    const table = standingsCache[code];
-    let homeRow = table && table.TOTAL[m.homeTeam.id];
-    let awayRow = table && table.TOTAL[m.awayTeam.id];
-    let homePrior = table && table.PRIOR[m.homeTeam.id];
-    let awayPrior = table && table.PRIOR[m.awayTeam.id];
+  // Helper: team's per-game attack/defense average, blending this season's
+  // own games with last season's final numbers as a "prior" that fades out
+  // as more current-season games are played (full weight to current by game 8).
+  function blendedAvg(currentRow, priorRow){
+    const curGames = currentRow ? currentRow.playedGames : 0;
+    const curFor = curGames > 0 ? currentRow.goalsFor / curGames : null;
+    const curAgainst = curGames > 0 ? currentRow.goalsAgainst / curGames : null;
+    const priorGames = priorRow ? priorRow.playedGames : 0;
+    const priorFor = priorGames > 0 ? priorRow.goalsFor / priorGames : null;
+    const priorAgainst = priorGames > 0 ? priorRow.goalsAgainst / priorGames : null;
 
-    // Helper: team's per-game attack/defense average, blending this season's
-    // own games with last season's final numbers as a "prior" that fades out
-    // as more current-season games are played (full weight to current by game 8).
-    function blendedAvg(currentRow, priorRow){
-      const curGames = currentRow ? currentRow.playedGames : 0;
-      const curFor = curGames > 0 ? currentRow.goalsFor / curGames : null;
-      const curAgainst = curGames > 0 ? currentRow.goalsAgainst / curGames : null;
-      const priorGames = priorRow ? priorRow.playedGames : 0;
-      const priorFor = priorGames > 0 ? priorRow.goalsFor / priorGames : null;
-      const priorAgainst = priorGames > 0 ? priorRow.goalsAgainst / priorGames : null;
+    const w = Math.min(1, curGames / 8); // weight given to current-season data
 
-      const w = Math.min(1, curGames / 8); // weight given to current-season data
-
-      let forAvg, againstAvg, quality;
-      if(curFor !== null && priorFor !== null){
-        forAvg = w*curFor + (1-w)*priorFor;
-        againstAvg = w*curAgainst + (1-w)*priorAgainst;
-        quality = curGames >= 3 ? 'season' : 'blended';
-      } else if(curFor !== null){
-        forAvg = curFor; againstAvg = curAgainst;
-        quality = curGames >= 3 ? 'season' : 'early';
-      } else if(priorFor !== null){
-        forAvg = priorFor; againstAvg = priorAgainst;
-        quality = 'priorOnly';
-      } else {
-        return null;
-      }
-      return { forAvg, againstAvg, quality };
-    }
-
-    const homeStats = blendedAvg(homeRow, homePrior);
-    const awayStats = blendedAvg(awayRow, awayPrior);
-
-    let lambdaH, lambdaA, dataQuality;
-    if(homeStats && awayStats){
-      lambdaH = (homeStats.forAvg + awayStats.againstAvg) / 2;
-      lambdaA = (awayStats.forAvg + homeStats.againstAvg) / 2;
-      // small heuristic home-advantage boost, since we no longer split home/away tables
-      lambdaH *= 1.12;
-      lambdaA *= 0.92;
-      // overall quality = the weaker of the two teams' data quality
-      const rank = { season: 3, early: 2, blended: 1, priorOnly: 0 };
-      dataQuality = rank[homeStats.quality] <= rank[awayStats.quality] ? homeStats.quality : awayStats.quality;
+    let forAvg, againstAvg, quality;
+    if(curFor !== null && priorFor !== null){
+      forAvg = w*curFor + (1-w)*priorFor;
+      againstAvg = w*curAgainst + (1-w)*priorAgainst;
+      quality = curGames >= 3 ? 'season' : 'blended';
+    } else if(curFor !== null){
+      forAvg = curFor; againstAvg = curAgainst;
+      quality = curGames >= 3 ? 'season' : 'early';
+    } else if(priorFor !== null){
+      forAvg = priorFor; againstAvg = priorAgainst;
+      quality = 'priorOnly';
     } else {
-      lambdaH = 1.45; lambdaA = 1.15; // league-average fallback
-      dataQuality = 'average';
+      return null;
     }
-    lambdaH = Math.max(0.3, Math.min(3.5, lambdaH));
-    lambdaA = Math.max(0.3, Math.min(3.5, lambdaA));
+    return { forAvg, againstAvg, quality };
+  }
 
-    const probs = matchOutcomeProbs(lambdaH, lambdaA);
-    const market = bestMarket(probs);
-    const fairOdd = Math.min(50, (1/market.p) * 1.06);
-    const mDate = new Date(m.utcDate);
-    const isoDate = `${mDate.getFullYear()}-${String(mDate.getMonth()+1).padStart(2,'0')}-${String(mDate.getDate()).padStart(2,'0')}`;
+  allMatches = [];
+  let skippedCount = 0;
+  for(const m of matches){
+    try{
+      const code = m.competition.code;
+      const table = standingsCache[code];
+      let homeRow = table && table.TOTAL[m.homeTeam.id];
+      let awayRow = table && table.TOTAL[m.awayTeam.id];
+      let homePrior = table && table.PRIOR[m.homeTeam.id];
+      let awayPrior = table && table.PRIOR[m.awayTeam.id];
 
-    allMatches.push({
-      home: m.homeTeam.shortName || m.homeTeam.name,
-      away: m.awayTeam.shortName || m.awayTeam.name,
-      league: m.competition.name,
-      date: mDate.toLocaleDateString(lang==='sw'?'sw-TZ':'en-GB'),
-      time: mDate.toLocaleTimeString(lang==='sw'?'sw-TZ':'en-GB',{hour:'2-digit',minute:'2-digit'}),
-      isoDate,
-      marketKey: market.key,
-      prob: market.p,
-      fairOdd,
-      dataQuality
-    });
+      const homeStats = blendedAvg(homeRow, homePrior);
+      const awayStats = blendedAvg(awayRow, awayPrior);
+
+      let lambdaH, lambdaA, dataQuality;
+      if(homeStats && awayStats){
+        lambdaH = (homeStats.forAvg + awayStats.againstAvg) / 2;
+        lambdaA = (awayStats.forAvg + homeStats.againstAvg) / 2;
+        // small heuristic home-advantage boost, since we no longer split home/away tables
+        lambdaH *= 1.12;
+        lambdaA *= 0.92;
+        // overall quality = the weaker of the two teams' data quality
+        const rank = { season: 3, early: 2, blended: 1, priorOnly: 0 };
+        dataQuality = rank[homeStats.quality] <= rank[awayStats.quality] ? homeStats.quality : awayStats.quality;
+      } else {
+        lambdaH = 1.45; lambdaA = 1.15; // league-average fallback
+        dataQuality = 'average';
+      }
+      lambdaH = Math.max(0.3, Math.min(3.5, lambdaH));
+      lambdaA = Math.max(0.3, Math.min(3.5, lambdaA));
+
+      const probs = matchOutcomeProbs(lambdaH, lambdaA);
+      const market = bestMarket(probs);
+      const fairOdd = Math.min(50, (1/market.p) * 1.06);
+      const mDate = new Date(m.utcDate);
+      const isoDate = `${mDate.getFullYear()}-${String(mDate.getMonth()+1).padStart(2,'0')}-${String(mDate.getDate()).padStart(2,'0')}`;
+
+      allMatches.push({
+        home: m.homeTeam.shortName || m.homeTeam.name,
+        away: m.awayTeam.shortName || m.awayTeam.name,
+        league: m.competition.name,
+        date: mDate.toLocaleDateString(lang==='sw'?'sw-TZ':'en-GB'),
+        time: mDate.toLocaleTimeString(lang==='sw'?'sw-TZ':'en-GB',{hour:'2-digit',minute:'2-digit'}),
+        isoDate,
+        marketKey: market.key,
+        prob: market.p,
+        fairOdd,
+        dataQuality
+      });
+    }catch(perMatchError){
+      skippedCount++;
+      continue; // one bad match should never block the rest, including today's
+    }
   }
 
   allMatches.sort((a,b)=> b.prob - a.prob); // safest first
