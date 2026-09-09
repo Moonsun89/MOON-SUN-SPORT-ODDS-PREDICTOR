@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#071019">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <title>Moon Sun Sport Odds Predictor</title>
 <style>
   :root{
@@ -120,11 +124,11 @@
   </header>
 
   <div class="btn-grid" id="btnGrid">
-    <button class="odd-btn" onclick="buildSlip(1.30,1.70)" data-i18n="b1">Odds 1.50</button>
-    <button class="odd-btn" onclick="buildSlip(1.90,2.60)" data-i18n="b2">Odds 2.00 - 2.50</button>
-    <button class="odd-btn" onclick="buildSlip(3.00,4.00)" data-i18n="b3">Odds 3.00 - 4.00</button>
-    <button class="odd-btn" onclick="buildSlip(5.00,7.00)" data-i18n="b4">Odds 5.00 - 7.00</button>
-    <button class="odd-btn big wide" onclick="buildSlip(15.00,30.00)" data-i18n="b5">Big Win: Odds 20+</button>
+    <button class="odd-btn" onclick="buildSlip(1.30,1.70,true)" data-i18n="b1">Odds 1.50</button>
+    <button class="odd-btn" onclick="buildSlip(1.90,2.60,true)" data-i18n="b2">Odds 2.00 - 2.50</button>
+    <button class="odd-btn" onclick="buildSlip(3.00,4.00,true)" data-i18n="b3">Odds 3.00 - 4.00</button>
+    <button class="odd-btn" onclick="buildSlip(5.00,7.00,true)" data-i18n="b4">Odds 5.00 - 7.00</button>
+    <button class="odd-btn big wide" onclick="buildSlip(15.00,30.00,false)" data-i18n="b5">Big Win: Odds 20+</button>
   </div>
 
   <div class="result-box" id="resultBox">
@@ -155,6 +159,7 @@ const T = {
     readyMsg:"✅ Mechi na takwimu zimepakuliwa. Chagua kundi la odds hapo juu.",
     pickBucket:"Bofya kundi la odds hapo juu kuona pendekezo.",
     notEnough:"Hazikupatikana mechi za kutosha zenye takwimu kufikia kundi hili leo. Jaribu kundi jingine.",
+    noneToday:"Hakuna mechi za leo bado kwenye ligi zinazopatikana bure. Jaribu 'Big Win 20+' inayotumia mechi za wiki nzima, au rudi baadaye leo.",
     b1:"Odds 1.50", b2:"Odds 2.00 - 2.50", b3:"Odds 3.00 - 4.00", b4:"Odds 5.00 - 7.00", b5:"Big Win: Odds 20+",
     prob:"Uwezekano wa Kitakwimu",
     fair:"Odd ya Kitakwimu",
@@ -177,6 +182,7 @@ const T = {
     readyMsg:"✅ Matches and stats loaded. Pick an odds group above.",
     pickBucket:"Tap an odds group above to see the recommendation.",
     notEnough:"Not enough analyzed matches today to reach this bucket. Try another one.",
+    noneToday:"No matches found today yet in the freely available leagues. Try 'Big Win 20+' which uses the whole week, or check back later today.",
     b1:"Odds 1.50", b2:"Odds 2.00 - 2.50", b3:"Odds 3.00 - 4.00", b4:"Odds 5.00 - 7.00", b5:"Big Win: Odds 20+",
     prob:"Statistical Likelihood",
     fair:"Statistical Fair Odd",
@@ -326,18 +332,52 @@ async function loadTodayData(){
     const table = standingsCache[code];
     let homeRow = table && table.TOTAL[m.homeTeam.id];
     let awayRow = table && table.TOTAL[m.awayTeam.id];
+    let homePrior = table && table.PRIOR[m.homeTeam.id];
+    let awayPrior = table && table.PRIOR[m.awayTeam.id];
+
+    // Helper: team's per-game attack/defense average, blending this season's
+    // own games with last season's final numbers as a "prior" that fades out
+    // as more current-season games are played (full weight to current by game 8).
+    function blendedAvg(currentRow, priorRow){
+      const curGames = currentRow ? currentRow.playedGames : 0;
+      const curFor = curGames > 0 ? currentRow.goalsFor / curGames : null;
+      const curAgainst = curGames > 0 ? currentRow.goalsAgainst / curGames : null;
+      const priorGames = priorRow ? priorRow.playedGames : 0;
+      const priorFor = priorGames > 0 ? priorRow.goalsFor / priorGames : null;
+      const priorAgainst = priorGames > 0 ? priorRow.goalsAgainst / priorGames : null;
+
+      const w = Math.min(1, curGames / 8); // weight given to current-season data
+
+      let forAvg, againstAvg, quality;
+      if(curFor !== null && priorFor !== null){
+        forAvg = w*curFor + (1-w)*priorFor;
+        againstAvg = w*curAgainst + (1-w)*priorAgainst;
+        quality = curGames >= 3 ? 'season' : 'blended';
+      } else if(curFor !== null){
+        forAvg = curFor; againstAvg = curAgainst;
+        quality = curGames >= 3 ? 'season' : 'early';
+      } else if(priorFor !== null){
+        forAvg = priorFor; againstAvg = priorAgainst;
+        quality = 'priorOnly';
+      } else {
+        return null;
+      }
+      return { forAvg, againstAvg, quality };
+    }
+
+    const homeStats = blendedAvg(homeRow, homePrior);
+    const awayStats = blendedAvg(awayRow, awayPrior);
 
     let lambdaH, lambdaA, dataQuality;
-    if(homeRow && awayRow && homeRow.playedGames >= 1 && awayRow.playedGames >= 1){
-      lambdaH = homeRow.goalsFor / homeRow.playedGames;
-      lambdaA = awayRow.goalsFor / awayRow.playedGames;
-      // blend in opponent's defensive average for realism
-      lambdaH = (lambdaH + (awayRow.goalsAgainst / awayRow.playedGames)) / 2;
-      lambdaA = (lambdaA + (homeRow.goalsAgainst / homeRow.playedGames)) / 2;
+    if(homeStats && awayStats){
+      lambdaH = (homeStats.forAvg + awayStats.againstAvg) / 2;
+      lambdaA = (awayStats.forAvg + homeStats.againstAvg) / 2;
       // small heuristic home-advantage boost, since we no longer split home/away tables
       lambdaH *= 1.12;
       lambdaA *= 0.92;
-      dataQuality = (homeRow.playedGames >= 3 && awayRow.playedGames >= 3) ? 'season' : 'early';
+      // overall quality = the weaker of the two teams' data quality
+      const rank = { season: 3, early: 2, blended: 1, priorOnly: 0 };
+      dataQuality = rank[homeStats.quality] <= rank[awayStats.quality] ? homeStats.quality : awayStats.quality;
     } else {
       lambdaH = 1.45; lambdaA = 1.15; // league-average fallback
       dataQuality = 'average';
@@ -348,13 +388,16 @@ async function loadTodayData(){
     const probs = matchOutcomeProbs(lambdaH, lambdaA);
     const market = bestMarket(probs);
     const fairOdd = Math.min(50, (1/market.p) * 1.06);
+    const mDate = new Date(m.utcDate);
+    const isoDate = `${mDate.getFullYear()}-${String(mDate.getMonth()+1).padStart(2,'0')}-${String(mDate.getDate()).padStart(2,'0')}`;
 
     allMatches.push({
       home: m.homeTeam.shortName || m.homeTeam.name,
       away: m.awayTeam.shortName || m.awayTeam.name,
       league: m.competition.name,
-      date: new Date(m.utcDate).toLocaleDateString(lang==='sw'?'sw-TZ':'en-GB'),
-      time: new Date(m.utcDate).toLocaleTimeString(lang==='sw'?'sw-TZ':'en-GB',{hour:'2-digit',minute:'2-digit'}),
+      date: mDate.toLocaleDateString(lang==='sw'?'sw-TZ':'en-GB'),
+      time: mDate.toLocaleTimeString(lang==='sw'?'sw-TZ':'en-GB',{hour:'2-digit',minute:'2-digit'}),
+      isoDate,
       marketKey: market.key,
       prob: market.p,
       fairOdd,
@@ -374,49 +417,112 @@ async function loadTodayData(){
   }
 }
 
+function getSeasonStartYears(){
+  const now = new Date();
+  const month = now.getMonth()+1; // 1-12
+  const year = now.getFullYear();
+  const currentStart = month >= 7 ? year : year - 1;
+  return { current: currentStart, prior: currentStart - 1 };
+}
+
 async function fetchStandings(code){
+  const { prior } = getSeasonStartYears();
+  const total = {}, priorTotal = {};
   try{
     const res = await fetch(`/api/predict?type=standings&code=${code}`);
-    if(!res.ok) return;
-    const json = await res.json();
-    const total = {};
-    (json.standings || []).forEach(block=>{
-      if(block.type === 'TOTAL'){
-        block.table.forEach(row => total[row.team.id] = row);
-      }
-    });
-    standingsCache[code] = {TOTAL: total};
-  }catch(e){ /* skip this competition's stats */ }
+    if(res.ok){
+      const json = await res.json();
+      (json.standings || []).forEach(block=>{
+        if(block.type === 'TOTAL') block.table.forEach(row => total[row.team.id] = row);
+      });
+    }
+  }catch(e){ /* skip current season stats for this competition */ }
+
+  await new Promise(r => setTimeout(r, 300)); // gentle spacing between calls
+
+  try{
+    const res2 = await fetch(`/api/predict?type=standings&code=${code}&season=${prior}`);
+    if(res2.ok){
+      const json2 = await res2.json();
+      (json2.standings || []).forEach(block=>{
+        if(block.type === 'TOTAL') block.table.forEach(row => priorTotal[row.team.id] = row);
+      });
+    }
+  }catch(e){ /* skip prior season stats for this competition */ }
+
+  standingsCache[code] = {TOTAL: total, PRIOR: priorTotal};
 }
 
 // ---- Slip builder ----
-function buildSlip(min, max){
+function getTodayLocalStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Backtracking search: finds a combination of matches whose multiplied fair
+// odds land inside [min,max], preferring fewer matches and higher confidence.
+function findBestCombo(pool, min, max){
+  const candidates = pool.slice(0, 18); // cap search space for performance
+  let best = null;
+
+  function avgProb(list){
+    return list.reduce((s,m)=>s+m.prob,0) / list.length;
+  }
+
+  function dfs(idx, chosen, product){
+    if(product >= min && product <= max){
+      if(!best || chosen.length < best.length ||
+         (chosen.length === best.length && avgProb(chosen) > avgProb(best))){
+        best = chosen.slice();
+      }
+    }
+    if(idx >= candidates.length) return;
+    if(product > max) return; // prune: already over budget
+    if(best && chosen.length + 1 >= best.length + 3) return; // prune very long branches once we have a decent answer
+
+    // include candidates[idx]
+    chosen.push(candidates[idx]);
+    dfs(idx+1, chosen, product * candidates[idx].fairOdd);
+    chosen.pop();
+
+    // exclude candidates[idx]
+    dfs(idx+1, chosen, product);
+  }
+
+  dfs(0, [], 1.0);
+  return best;
+}
+
+function buildSlip(min, max, todayOnly){
   const box = document.getElementById('resultBox');
   if(allMatches.length === 0){
     box.innerHTML = `<div class="status-line err">${T[lang].loadingMatches}</div>`;
     return;
   }
 
-  let selected = [];
-  let currentOdd = 1.0;
-  for(const m of allMatches){
-    if(selected.includes(m)) continue;
-    const projected = currentOdd * m.fairOdd;
-    if(projected <= max * 1.05){
-      selected.push(m);
-      currentOdd = projected;
-      if(currentOdd >= min) break;
+  let pool = allMatches;
+  if(todayOnly){
+    const todayStr = getTodayLocalStr();
+    pool = allMatches.filter(m => m.isoDate === todayStr);
+    if(pool.length === 0){
+      box.innerHTML = `<div class="status-line err">${T[lang].noneToday}</div>`;
+      return;
     }
   }
 
-  if(currentOdd < min || selected.length === 0){
+  const selected = findBestCombo(pool, min, max);
+
+  if(!selected || selected.length === 0){
     box.innerHTML = `<div class="status-line err">${T[lang].notEnough}</div>`;
     return;
   }
 
+  const currentOdd = selected.reduce((p,m)=>p*m.fairOdd, 1.0);
+
   let html = '';
   selected.forEach(m=>{
-    const qualityNote = m.dataQuality === 'average' ? ' †' : (m.dataQuality === 'early' ? ' *' : '');
+    const qNote = {average:' †', priorOnly:' ‡', blended:' ~', early:' *', season:''};
+    const qualityNote = qNote[m.dataQuality] || '';
     html += `
       <div class="match-card">
         <div class="match-header">
@@ -444,6 +550,12 @@ function buildSlip(min, max){
 
 applyTranslations();
 loadTodayData();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>
