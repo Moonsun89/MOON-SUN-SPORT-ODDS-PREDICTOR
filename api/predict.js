@@ -1,11 +1,12 @@
 const FOOTBALL_API_KEY = 'c193872bdf2840ec86479caf47d36e20';
 
 export default async function handler(req, res) {
-  const { type, dateFrom, dateTo, code } = req.query;
+  const { type, dateFrom, dateTo, code, season } = req.query;
   try {
     let url;
     if (type === 'standings') {
       url = `https://api.football-data.org/v4/competitions/${code}/standings`;
+      if (season) url += `?season=${season}`;
     } else {
       url = `https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`;
     }
