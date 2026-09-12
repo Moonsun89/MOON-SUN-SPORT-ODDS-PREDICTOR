@@ -211,9 +211,14 @@ function toggleAdvice(){
   box.style.display = box.style.display === 'none' ? 'block' : 'none';
 }
 
+let lastSlipParams = null;
+
 function toggleLang(){
   lang = lang === 'sw' ? 'en' : 'sw';
   applyTranslations();
+  if(lastSlipParams){
+    buildSlip(lastSlipParams.min, lastSlipParams.max, lastSlipParams.todayOnly);
+  }
 }
 
 function setStatus(msg, cls){
@@ -500,6 +505,7 @@ function findBestCombo(pool, min, max){
 }
 
 function buildSlip(min, max, todayOnly){
+  lastSlipParams = { min, max, todayOnly };
   const box = document.getElementById('resultBox');
   if(allMatches.length === 0){
     box.innerHTML = `<div class="status-line err">${T[lang].loadingMatches}</div>`;
